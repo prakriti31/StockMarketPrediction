@@ -1,0 +1,106 @@
+#To start hive, we ran schematool to initialize the metastore_db  and then we started the hive. 
+#Later we added json serde dependency jar to the hive using following command. JSON SerDe is used to map the json object to the table schema. 
+
+hdfs dfs -mkdir /bdp
+hdfs dfs -copyFromLocal json-serde-1.3.8-jar-with-dependencies.jar /bdp
+
+hdfs dfs -mkdir /jcomp
+hdfs dfs -copyFromLocal json-serde-1.3.8-jar-with-dependencies.jar /jcomp
+
+
+#The tweets file (tweets1.json) is copied to HDFS for further analysis using the the below command
+
+hdfs dfs -copyFromLocal ~/tapi/tweets1.json /bdp 
+hdfs dfs -copyFromLocal ~/divyanshi/tweets1.json /jcomp
+
+
+#Later, the file is moved to other directory which only contains that particular json file that helps while creating table in hive.
+
+hdfs dfs -mkdir /jcomp/twitter
+hdfs dfs -cp /jcomp/twitter1.json /jcomp/twitter
+
+
+#Next, we created the table in hive tweets_raw with the few required attributes from the tweet object which we extracted from twitter api. If you see here, the rows were delimited by serde which points to the added jar of json serde and location is pointing to the directory in hdfs which contains the tweets json file. 
+
+hive> CREATE EXTERNAL TABLE tweets_raw (
+> id BIGINT,
+> created_at STRING,
+> source STRING,
+> favorited BOOLEAN,
+> retweet_count INT,
+> retweeted_status STRUCT<
+>   text:STRING,
+>   user:STRUCT<screen_name:STRING,name:STRING>>,
+> entities STRUCT< 
+>   urls:ARRAY<STRUCT<expanded_url:STRING>>,
+>   user_mentions:ARRAY<screen_name:STRING,name:STRING>>,
+>   hashtags:ARRAY<STRUCT<text:STRING>>>,
+> text STRING,
+> user STRUCT<
+>   screen_name:STRING,
+>   name:STRING,
+>   friends_count:INT,
+>   followers_count:INT,
+>   statuses_count:INT,
+>   verified:BOOLEAN
+>   utc_offset:STRING, --was INT but nulls are strings
+>   time_zone:STRING>,
+> in_reply_to_screen_name STRING,
+> year int,
+> month int,
+> day int,
+> hour int
+> )
+> ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
+> LOCATION '/bdp/twitter'
+> ;
+
+
+#SENTIMENT ANALYSIS
+#Initially, we separated the word using split function on text data in tweets _raw table and saved into split_words table using below command. 
+
+hive> create table split_words as select id as id,split(text,' ') as words from tweets_raw;
+
+hive> select * from split_words limit 5;
+
+
+#Now, we are splitting each word in the array as the new row. For this, we are using explode function which extracts the element from array into new row. Since it got some limitations we are using LATERAL VIEW
+
+hive> create table tweet_word as select id as id,word from split_words LATERAL VIEW explode(words) w as word;
+
+hive> describe tweet_word;
+hive> select * from tweet_word limit 5;
+
+#We got every word in new rows. Now, we will create new table named dictionary and will load the AFINN dictionary data into that table as as show below.
+
+hive> LOAD DATA LOCAL INPATH '../tapi/AFINN.txt into TABLE dictionary;
+
+hive> select * from dictionary limit 5;
+
+#Create new table word_join by joining dictionary and tweet_word tables as shown below. 
+
+hive> create table word_join as select tweet_word.id,tweet_word.word,dictionary.rating from tweet_word LEFT OUTER JOIN dictionary ON(tweet_word.word =dictionary.word);
+
+
+#After joining now, we got the polarity value for each tweet in the word_join table which is shown below. 
+
+hive> select id,AVG(rating) as rating from word_join GROUP BY word_join.id ORDER BY rating DESC limit 10;
+
+#After joining now, we got the polarity value for each tweet in the word_join table which is shown below. Now, we are saving the same id based grouped data into the testjoin table.
+
+hive> create table testjoin as select id,AVG(rating) as polarity from word_join GROUP BY word_join.id;
+
+#At last, we are joining the tweets_raw table and test join table based on id and created new table ‘tweets.
+
+hive> create table tweets as select tweets_raw.*,nvl(testjoin.polarity,0) as polarity from tweets_raw LEFT OUTER JOIN testjoin ON(tweets_raw.id =testjoin.id);
+
+hive> select * from tweets limit 10;
+
+#At last, we are joining the tweets_raw table and test join table based on id and created new table ‘tweets. Below, we can the see sample data which the results show the tweet text and polarity value. This is one of the important part in this project. If you see the first tweets, it says holding the AAPL for overnight is risky hence it showed negative polarity value. 
+
+hive> select distinct(text),polarity from finaltweets where polarity is not null limit 10;
+
+
+
+
+

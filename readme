@@ -1,0 +1,31 @@
+Store your twitter developer account credentials in ApCredentials.py.
+Run the RulePayload.py file to extract all the tweets from a particular start date to end date and store them in  tweets1.json file.
+Store this tweets1.json file in hdfs.
+Start hive
+Add json serde dependency jar to hive. JSON SerDe is used to map the json object to the table schema.
+Run all the hive commands given in commands.txt file.
+Create tweets_raw table in hive.
+Now we perform sentiment analysis using the AFINN dictionary.
+We created a split_words table. We separated the words using split function on text data in tweets _raw table and saved into split_words table.
+Now, we are splitting each word in the array as the new row. For this, we are using the explode function which extracts the element from the array into a new row. Since it has some limitations we are using a LATERAL VIEW. We are storing these words in a new table called tweet_words
+Now, we will create a new table named dictionary and will load the AFINN dictionary data into that table.
+Create a new table word_join by joining the ‘dictionary’ table and ‘tweet_word’ table.	
+Find average rating or polarity value of each tweet using ID attribute.
+Save the ID based grouped data in a new table called ‘testjoin’.
+Now join the tweets_raw table and testjoin table based on id and create a new table called ‘tweets’.
+Now we can run sql queries in hive to analyse different sections of data.
+Run all the commands in hive_analysis.txt to perform hive analysis.
+Create another table know as ‘outtable’ by joining ‘tweets_raw’ table and ‘testjoin’ table
+Export the data stored in ‘outdata’ table in a ‘out_data.csv’ file
+Now we extract all the hashtags from the tweets by running th parse.py python script.
+All hashtags will be stored in the hashtags.txt file.
+Store the hashtags.txt file in  hdfs.
+Run the word count program to count each hashtag.
+Store the result in a local json file calld as ‘tweets1.json’. 
+Now we create data frames of out_data.csv and tweets1.json in spark. 
+Then we run the pyspark script to perform data analysis on the two data frames in spark and compare the execution time of same queries running in hive.
+Run the code in spark.py file to perform spark analysis.	
+Compare the execution time of the same sqk commands in hiva and spark.
+Perform Comparitive analysis.
+Visualize the polarities in the ‘out_data.csv’ file which tells us the percentage of positive, negative and neutral tweets.
+Plot the graph of time vs avg. polarity.

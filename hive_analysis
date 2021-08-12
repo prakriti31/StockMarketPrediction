@@ -1,0 +1,50 @@
+#Below are the Queries for analysis using Hive.
+
+select count (*) from tweets;
+
+#The below query shows the screenname of the user and there followers count in the descending order in whole dataset. In this dataset, Apple user has the more number of followers. 
+
+hive> select distinct user,screen_name as name, user.followers_count as count
+> from tweets
+> where size(entities.hashtags) > 0
+> order by count desc
+> limit 5;
+
+#Using the below query, we are fetching the user screennames and number of tweets tweeted by them in the descending order. In this dataset, TIN-Tech Bloggers has tweeted more about AAPL. 
+
+hive> select user.name, user,screen_name, count(1) as cc
+> from tweets
+> where text like "%AAPL%" and user.name is not null
+> group by user.name,user.screen_name
+> order by cc desc limit 5;
+
+#In the below query, we are getting the number of positive tweets which contains the keyword ‘Iphone’. There are 234 positive tweets about Iphone.
+
+hive > select count(*) from tweets where text like '%Iphone%' or text like '%iphone%' and polarity > 0.0;
+
+#Here, we are getting the number of negative tweets which contains the keyword ‘Event’ and there are 1462 tweets in this dataset. 
+
+hive> select count(*) from tweets where text like '%event%' or '%Event%' and polarity < 0.0;
+
+#The below basic query returns the created time, source of the tweet, screenname, username and their polarities. 
+
+hive> select created_at,source,retweet_count,user.screen_name,user.name,polarity from tweets limit 10;
+
+#And the same data is stored in other csv file which helps in later part of analysis (Cassandra, visualization) 
+
+hive> create table outtable as select created_at,source,retweet_count,user.screen_name,user.name,nvl(polarity,0) as polarity from tweets_raw join testjoin on(tweets_raw.id==testjoin.id) where created_at is not null;
+
+hive> insert overwrite local directory '/home/jaisekhar/tapi/outdata' row format delimited fields terminated by ',' select * from outtable;
+
+#The below query shows the user’s name whose tweets has maximum number of retweet count. In this dataset, Earnings Whispers tweet has more tweet count.
+
+hive> select user.name,retweet_count from tweets_raw where retweet_count in (select max(retweet_count) from tweets);
+
+#Using this query, we are getting User’s name and their total number of tweets in the descending order
+
+hive> select user.name,count(*) as count from tweets_raw group by user.name order by count desc limit 10;
+
+
+
+
+
